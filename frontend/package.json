@@ -1,0 +1,55 @@
+{
+  "name": "securebank-chatbot-frontend",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "ML-Powered Banking Chatbot Frontend with React + Vite",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "start": "concurrently \"npm run dev\" \"cd ../backend && python app.py\"",
+    "start:full": "concurrently \"npm run dev\" \"cd ../backend && python nlu_service.py --serve\" \"cd ../backend && python app.py\"",
+    "train": "cd ../backend && python train_model.py",
+    "setup": "cd ../backend && python -m pip install -r requirements.txt && python train_model.py"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.2.0",
+    "@mui/material": "^7.2.0",
+    "axios": "^1.10.0",
+    "lucide-react": "^0.536.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.7.1",
+    "zustand": "^5.0.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.1",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "concurrently": "^9.2.0",
+    "eslint": "^9.30.1",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "vite": "^7.0.4"
+  },
+  "keywords": [
+    "react",
+    "vite",
+    "banking",
+    "chatbot",
+    "ai",
+    "machine-learning",
+    "fintech",
+    "intent-recognition",
+    "nlu"
+  ],
+  "author": "SecureBank ML Development Team",
+  "license": "MIT"
+}
