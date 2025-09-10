@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 import re
 import os
-import numpy as np
+
 
 def preprocess_text(text):
     """Clean and preprocess text"""
@@ -15,6 +15,7 @@ def preprocess_text(text):
     text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
     text = re.sub(r'\d+', 'NUM', text)   # Replace numbers with NUM
     return text.strip()
+
 
 def train_intent_model():
     """Train intent classification model from CSV data"""
@@ -40,9 +41,9 @@ def train_intent_model():
     X = df['text']
     y = df['intent']
     
-    # Split data
+    # Split data (without stratify to avoid classes with single samples error)
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
+        X, y, test_size=0.2, random_state=42
     )
     
     print(f"📈 Training samples: {len(X_train)}")
@@ -99,6 +100,7 @@ def train_intent_model():
     print(classification_report(y_test, y_pred))
     
     return pipeline, metadata
+
 
 if __name__ == "__main__":
     model, metadata = train_intent_model()
