@@ -12,11 +12,15 @@ import re
 
 # Import ML NLU service
 try:
-    from nlu_service import analyze_query
-    print("✅ ML NLU Service imported successfully")
+    from nlu_service_enhanced import analyze_query
+    print("✅ Enhanced ML NLU Service imported successfully")
 except ImportError:
-    print("⚠️ ML NLU Service not available, using fallback")
-    analyze_query = None
+    try:
+        from nlu_service import analyze_query
+        print("✅ ML NLU Service imported successfully")
+    except ImportError:
+        print("⚠️ ML NLU Service not available, using fallback")
+        analyze_query = None
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'securebank_jwt_secret_key_2024'
@@ -24,7 +28,7 @@ CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
 
 @app.route("/")
 def root():
-    return jsonify({"status": "ML-Powered Banking API", "version": "2.0", "ml_enabled": analyze_query is not None}), 200
+    return jsonify({"status": "Enhanced ML-Powered Banking API", "version": "3.0", "ml_enabled": analyze_query is not None}), 200
 
 # Users DB
 USERS_DB = {
@@ -79,8 +83,8 @@ CHAT_SESSIONS = {}
 FAQS_DB = [
     {"_id": "faq_001", "question": "How do I check my account balance?", "answer": "You can check your account balance by asking me 'What is my balance?' or 'Show my account balance'. I'll provide you with real-time balance information.", "created_at": datetime.now(timezone.utc).isoformat()},
     {"_id": "faq_002", "question": "How can I transfer money?", "answer": "To transfer money, simply tell me 'Transfer [amount] to [recipient]'. I'll guide you through the secure transfer process.", "created_at": datetime.now(timezone.utc).isoformat()},
-    {"_id": "faq_003", "question": "What loan options are available?", "answer": "We offer Personal, Home, and Car loans. Ask for details.", "created_at": datetime.now(timezone.utc).isoformat()},
-    {"_id": "faq_004", "question": "How secure is this chatbot?", "answer": "Bank-grade security with ML-powered understanding.", "created_at": datetime.now(timezone.utc).isoformat()}
+    {"_id": "faq_003", "question": "What loan options are available?", "answer": "We offer Personal, Home, Car, and Business loans. Ask for details.", "created_at": datetime.now(timezone.utc).isoformat()},
+    {"_id": "faq_004", "question": "How secure is this chatbot?", "answer": "Bank-grade security with enhanced ML-powered understanding and conversation flows.", "created_at": datetime.now(timezone.utc).isoformat()}
 ]
 
 USER_MESSAGES = []
@@ -113,18 +117,22 @@ def token_required(f):
         token = request.headers.get('Authorization')
         if not token:
             return jsonify({'message': 'Token is missing'}), 401
+
         try:
-            token = token.split(' ')[1] # Remove 'Bearer ' prefix
+            token = token.split(' ')[1]  # Remove 'Bearer ' prefix
             payload = verify_token(token)
             if not payload:
                 return jsonify({'message': 'Token is invalid'}), 401
+
             # Find user data
             user_email = payload['email']
             if user_email not in USERS_DB:
                 return jsonify({'message': 'User not found'}), 401
+
             request.current_user = USERS_DB[user_email]
         except Exception:
             return jsonify({'message': 'Token is invalid'}), 401
+
         return f(*args, **kwargs)
     return decorated
 
@@ -151,14 +159,17 @@ def register():
         # Validation
         if not all([name, email, password]):
             return jsonify({'message': 'All fields are required'}), 400
+
         if email in USERS_DB:
             return jsonify({'message': 'User already exists'}), 400
+
         if len(password) < 6:
             return jsonify({'message': 'Password must be at least 6 characters'}), 400
 
         # Create new user
         user_id = f"user_{len(USERS_DB)+1:03d}"
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
         USERS_DB[email] = {
             "id": user_id,
             "name": name,
@@ -180,6 +191,7 @@ def register():
             })
 
         return jsonify({'message': 'User registered successfully'}), 201
+
     except Exception as e:
         return jsonify({'message': f'Registration failed: {str(e)}'}), 500
 
@@ -194,15 +206,19 @@ def login():
         if 'email' in data:
             email = data.get('email', '').strip().lower()
             password = data.get('password', '')
+
             if email not in USERS_DB:
                 return jsonify({'message': 'Invalid credentials'}), 401
+
             user = USERS_DB[email]
             if not bcrypt.checkpw(password.encode('utf-8'), user['password']):
                 return jsonify({'message': 'Invalid credentials'}), 401
+
         elif 'accountNumber' in data:
             # Banking login with account number and PIN
             account_number = data.get('accountNumber', '')
             pin = data.get('pin', '')
+
             # Find user by account number
             for email, user_data in USERS_DB.items():
                 if user_data.get('account_number') == account_number:
@@ -211,8 +227,10 @@ def login():
                        (user_data.get('account_number') == '2345678901' and pin == '5678'):
                         user = user_data
                         break
+
             if not user:
                 return jsonify({'message': 'Invalid account number or PIN'}), 401
+
         else:
             return jsonify({'message': 'Invalid login data'}), 400
 
@@ -231,6 +249,7 @@ def login():
             'token': token,
             'user': user_response
         }), 200
+
     except Exception as e:
         return jsonify({'message': f'Login failed: {str(e)}'}), 500
 
@@ -240,8 +259,8 @@ def login():
 def create_session():
     """Create new chat session"""
     session_id = str(uuid.uuid4())
-    greeting_message = f"Hello {request.current_user['name']}! I'm your ML-powered AI banking assistant. How can I help you today?"
-    
+    greeting_message = f"Hello {request.current_user['name']}! I'm your enhanced AI banking assistant with advanced conversation capabilities. How can I help you today?"
+
     CHAT_SESSIONS[session_id] = {
         'id': session_id,
         'user_id': request.current_user['id'],
@@ -266,18 +285,18 @@ def get_session_messages(session_id):
     """Get messages for a session"""
     if session_id not in CHAT_SESSIONS:
         return jsonify({'message': 'Session not found'}), 404
-    
+
     session = CHAT_SESSIONS[session_id]
     if session['user_id'] != request.current_user['id'] and request.current_user['role'] != 'admin':
         return jsonify({'message': 'Access denied'}), 403
-    
+
     return jsonify(session['messages']), 200
 
-# Chat Routes
+# Enhanced Chat Routes
 @app.route('/api/chat/message', methods=['POST'])
 @token_required
 def send_message():
-    """Send chat message and get bot response"""
+    """Send chat message and get enhanced bot response"""
     try:
         data = request.get_json()
         session_id = data.get('sessionId')
@@ -301,8 +320,8 @@ def send_message():
         CHAT_SESSIONS[session_id]['messages'].append(user_message)
         USER_MESSAGES.append(user_message)
 
-        # Generate bot response using ML
-        bot_response = generate_ml_banking_response(message_text, request.current_user)
+        # Generate enhanced bot response using ML with session context
+        bot_response = generate_enhanced_banking_response(message_text, request.current_user, session_id)
 
         bot_message = {
             'sender': 'bot',
@@ -311,7 +330,10 @@ def send_message():
             'intent': bot_response.get('intent', 'general'),
             'confidence': bot_response.get('confidence', 0.8),
             'entities': bot_response.get('entities', []),
-            'method': bot_response.get('method', 'ml')
+            'method': bot_response.get('method', 'ml'),
+            'needs_slot_filling': bot_response.get('needs_slot_filling', False),
+            'pending_slots': bot_response.get('pending_slots', {}),
+            'filled_slots': bot_response.get('filled_slots', {})
         }
 
         CHAT_SESSIONS[session_id]['messages'].append(bot_message)
@@ -322,119 +344,226 @@ def send_message():
     except Exception as e:
         return jsonify({'message': f'Error processing message: {str(e)}'}), 500
 
-def generate_ml_banking_response(message, user):
-    """ML-powered banking response generator"""
+def generate_enhanced_banking_response(message, user, session_id=None):
+    """Enhanced ML-powered banking response generator with conversation flows"""
     try:
-        # Use ML model for intent detection
+        # Use enhanced ML model for intent detection
         if analyze_query:
-            analysis = analyze_query(message)
+            analysis = analyze_query(message, session_id)
             intent = analysis['intent']
             confidence = analysis['confidence']
             entities = analysis['entities']
             method = analysis.get('method', 'ml')
+            needs_slot_filling = analysis.get('needs_slot_filling', False)
+            pending_slots = analysis.get('pending_slots', {})
+            filled_slots = analysis.get('filled_slots', {})
+            chitchat_response = analysis.get('response', '')
         else:
             # Fallback to basic analysis
             intent, confidence, entities, method = fallback_analysis(message)
+            needs_slot_filling = False
+            pending_slots = {}
+            filled_slots = {}
+            chitchat_response = ''
+
+        # Handle chitchat responses
+        if intent == 'chitchat' and chitchat_response:
+            return {
+                'text': chitchat_response,
+                'intent': intent,
+                'confidence': confidence,
+                'entities': entities,
+                'method': method,
+                'conversation_complete': True
+            }
+
+        # Handle slot filling
+        if needs_slot_filling and pending_slots:
+            slot_name = list(pending_slots.keys())[0]
+            slot_question = pending_slots[slot_name]
+            
+            return {
+                'text': f"{slot_question}\n\n🤖 ML Analysis: {confidence:.1%} confidence\n\nPlease provide the missing information to proceed.",
+                'intent': intent,
+                'confidence': confidence,
+                'entities': entities,
+                'method': method,
+                'needs_slot_filling': True,
+                'pending_slots': pending_slots,
+                'filled_slots': filled_slots
+            }
 
         # Extract useful entities
         amounts = [e['value'] for e in entities if e['label'] == 'AMOUNT']
         accounts = [e['value'] for e in entities if e['label'] == 'ACCOUNT_NUMBER']
         cards = [e['value'] for e in entities if e['label'] == 'CARD_TYPE']
+        loan_types = [e['value'] for e in entities if e['label'] == 'LOAN_TYPE']
 
-        # Generate responses based on ML intent
+        # Generate enhanced responses based on ML intent with context
         if intent == 'check_balance':
             if user.get('balance'):
                 return {
-                    'text': f"Your current account balance is ₹{user['balance']:,}. Account type: {user.get('account_type', 'N/A')}.\n\n📊 ML Confidence: {confidence:.1%}\n\nIs there anything else you'd like to know?",
+                    'text': f"Your current account balance is ₹{user['balance']:,}. Account type: {user.get('account_type', 'N/A')}.\n\n📊 ML Confidence: {confidence:.1%}\n\nAccount Summary:\n• Available Balance: ₹{user['balance']:,}\n• Account Status: Active\n• Last Updated: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n\nIs there anything else you'd like to know?",
                     'intent': intent,
                     'confidence': confidence,
                     'entities': entities,
-                    'method': method
+                    'method': method,
+                    'conversation_complete': True
+                }
+            else:
+                return generate_fallback_response("I'd be happy to help you check your balance. Please contact customer service for verification.", intent, confidence, entities, method)
+
+        elif intent == 'transfer_money':
+            amount_text = f"₹{amounts[0]}" if amounts else filled_slots.get('amount', '[amount]')
+            recipient_text = accounts[0] if accounts else filled_slots.get('recipient', '[recipient]')
+            
+            if filled_slots.get('amount') and filled_slots.get('recipient'):
+                return {
+                    'text': f"Perfect! I can help you transfer {amount_text} to {recipient_text}.\n\n🤖 Detected with {confidence:.1%} confidence\n\n💸 Transfer Summary:\n• Amount: {amount_text}\n• To: {recipient_text}\n• From: Your account ({user.get('account_number', 'XXXX')})\n\nFor security, I'll need you to confirm this transfer with OTP verification. Shall I proceed?",
+                    'intent': intent,
+                    'confidence': confidence,
+                    'entities': entities,
+                    'method': method,
+                    'conversation_complete': True
                 }
             else:
                 return {
-                    'text': "I'd be happy to help you check your balance. Please contact customer service for verification.",
+                    'text': f"I can help you transfer money.\n\n🤖 Detected with {confidence:.1%} confidence\n\nTo proceed with the transfer, I need:\n• Transfer amount\n• Recipient account details\n\nPlease provide the missing information.",
                     'intent': intent,
                     'confidence': confidence,
                     'entities': entities,
-                    'method': method
+                    'method': method,
+                    'needs_slot_filling': True
                 }
 
-        elif intent == 'transfer_money':
-            amount_text = f"of ₹{amounts[0]}" if amounts else ""
-            account_text = f"to account {accounts[0]}" if accounts else ""
-            return {
-                'text': f"I can help you transfer money {amount_text} {account_text}.\n\n🤖 Detected with {confidence:.1%} confidence\n\nFor security, I'll need to verify the recipient details. Please provide the complete account number and recipient name.",
-                'intent': intent,
-                'confidence': confidence,
-                'entities': entities,
-                'method': method
-            }
-
         elif intent == 'apply_loan':
-            return {
-                'text': f"Great! I can help you with loan applications.\n\n🎯 ML Analysis: {confidence:.1%} confidence\n\nBased on your profile, you're eligible for:\n💰 Personal Loan: Up to ₹5,00,000 @ 10.5%\n🏠 Home Loan: Up to ₹25,00,000 @ 8.5%\n🚗 Car Loan: Up to ₹8,00,000 @ 9.5%\n\nWhich type of loan interests you?",
-                'intent': intent,
-                'confidence': confidence,
-                'entities': entities,
-                'method': method
-            }
+            loan_type = loan_types[0] if loan_types else filled_slots.get('loan_type', 'loan')
+            amount = amounts[0] if amounts else filled_slots.get('amount', '')
+            
+            if filled_slots.get('loan_type'):
+                loan_info = get_loan_details(filled_slots['loan_type'])
+                return {
+                    'text': f"Excellent! I can help you with {loan_type} application.\n\n🎯 ML Analysis: {confidence:.1%} confidence\n\n{loan_info}\n\nBased on your profile, you appear eligible. Would you like me to start the application process?",
+                    'intent': intent,
+                    'confidence': confidence,
+                    'entities': entities,
+                    'method': method,
+                    'conversation_complete': True
+                }
+            else:
+                return {
+                    'text': f"Great! I can help you with loan applications.\n\n🎯 ML Analysis: {confidence:.1%} confidence\n\nWe offer several loan types:\n💰 Personal Loan: Up to ₹5,00,000 @ 10.5%\n🏠 Home Loan: Up to ₹25,00,000 @ 8.5%\n🚗 Car Loan: Up to ₹8,00,000 @ 9.5%\n💼 Business Loan: Up to ₹10,00,000 @ 11.0%\n\nWhich type of loan interests you?",
+                    'intent': intent,
+                    'confidence': confidence,
+                    'entities': entities,
+                    'method': method,
+                    'needs_slot_filling': True
+                }
 
         elif intent == 'lost_card':
-            card_type = cards[0] if cards else "card"
-            return {
-                'text': f"I understand you need to report a lost/stolen {card_type}.\n\n🔒 Security Alert: {confidence:.1%} confidence\n\nI can block your card immediately for security. Your card will be blocked within 2 minutes. Should I proceed?",
-                'intent': intent,
-                'confidence': confidence,
-                'entities': entities,
-                'method': method
-            }
+            card_type = cards[0] if cards else filled_slots.get('card_type', 'card')
+            
+            if filled_slots.get('card_type'):
+                return {
+                    'text': f"I understand you need to report a lost/stolen {card_type}.\n\n🔒 Security Alert: {confidence:.1%} confidence\n\n⚠️ IMMEDIATE ACTION REQUIRED:\n• Your {card_type} will be blocked within 2 minutes\n• New card will be issued in 3-5 business days\n• Any unauthorized transactions will be investigated\n\nShall I proceed with blocking your {card_type} now?",
+                    'intent': intent,
+                    'confidence': confidence,
+                    'entities': entities,
+                    'method': method,
+                    'conversation_complete': True
+                }
+            else:
+                return {
+                    'text': f"I can help you report a lost or stolen card.\n\n🔒 Security Alert: {confidence:.1%} confidence\n\nTo proceed immediately, please tell me:\n• Which card did you lose? (Credit Card, Debit Card, ATM Card)\n\nThis is urgent for your security!",
+                    'intent': intent,
+                    'confidence': confidence,
+                    'entities': entities,
+                    'method': method,
+                    'needs_slot_filling': True
+                }
 
         elif intent == 'get_branch_details':
             return {
-                'text': f"I can help you find branch information.\n\n📍 Location Service: {confidence:.1%} confidence\n\nOur main branches:\n🏢 Mumbai - Nariman Point\n🏢 Delhi - Connaught Place\n🏢 Bangalore - MG Road\n🏢 Chennai - Anna Salai\n\nWhich city are you looking for?",
+                'text': f"I can help you find branch information.\n\n📍 Location Service: {confidence:.1%} confidence\n\n🏢 SecureBank Branch Network:\n\n🌟 Main Branches:\n• Mumbai - Nariman Point (24/7 ATM)\n• Delhi - Connaught Place (Extended Hours)\n• Bangalore - MG Road (Premium Banking)\n• Chennai - Anna Salai (Corporate Banking)\n\n📞 Contact: 1800-123-4567\n🌐 Website: www.securebank.com\n\nWhich city branch would you like detailed information about?",
                 'intent': intent,
                 'confidence': confidence,
                 'entities': entities,
-                'method': method
+                'method': method,
+                'conversation_complete': True
             }
 
-        elif intent == 'greeting_hi':
+        elif intent == 'account_info':
             return {
-                'text': f"Hello {user['name']}! I'm your ML-powered AI banking assistant.\n\n🤖 Analysis: {confidence:.1%} confidence\n\nI can help with balance inquiries, transfers, loans, and much more. What would you like to do today?",
+                'text': f"Here's your account information:\n\n👤 Account Details: {confidence:.1%} confidence\n\n📋 Your Profile:\n• Name: {user.get('name', 'N/A')}\n• Account Number: {user.get('account_number', 'N/A')}\n• Account Type: {user.get('account_type', 'N/A')}\n• Balance: ₹{user.get('balance', 0):,}\n• Phone: {user.get('phone', 'N/A')}\n• Status: Active\n\nIs there any specific account information you'd like to update?",
                 'intent': intent,
                 'confidence': confidence,
                 'entities': entities,
-                'method': method
+                'method': method,
+                'conversation_complete': True
             }
 
-        elif intent == 'greeting_bye':
+        elif intent == 'fallback':
+            fallback_responses = [
+                f"I want to help you with your banking needs, but I didn't quite understand your request.\n\n🤖 Analysis: {confidence:.1%} confidence\n\n💡 I can assist with:\n• Balance inquiries\n• Money transfers\n• Loan applications\n• Card services\n• Branch information\n\nCould you please rephrase your question or choose from the options above?",
+                f"I'm here to help with your banking, but I need a bit more clarity.\n\n🤖 Processing: {confidence:.1%} confidence\n\n🔧 Popular services:\n• Check account balance\n• Transfer money\n• Apply for loans\n• Report lost cards\n• Find branch locations\n\nWhat would you like to do today?",
+                f"Let me help you with your banking needs, but I need more information.\n\n🤖 Understanding: {confidence:.1%} confidence\n\n✨ Try asking:\n• 'What's my balance?'\n• 'Transfer money to account'\n• 'Apply for home loan'\n• 'Block my credit card'\n• 'Find nearest branch'\n\nHow can I assist you?"
+            ]
+            
+            import random
             return {
-                'text': f"Thank you for using SecureBank services!\n\n👋 Detected with {confidence:.1%} confidence\n\nHave a great day. I'm always here to help with your banking needs.",
+                'text': random.choice(fallback_responses),
                 'intent': intent,
                 'confidence': confidence,
                 'entities': entities,
-                'method': method
+                'method': method,
+                'conversation_complete': False
             }
 
-        else:  # general_inquiry or other
-            return {
-                'text': f"I understand you're asking about banking services.\n\n🤖 ML Analysis: {confidence:.1%} confidence\n\nI can help with:\n💰 Balance inquiries\n💸 Money transfers\n📊 Loan applications\n💳 Card services\n🏢 Branch information\n\nWhat specifically would you like help with?",
-                'intent': intent,
-                'confidence': confidence,
-                'entities': entities,
-                'method': method
-            }
+        else:  # general_inquiry
+            return generate_general_response(user, intent, confidence, entities, method)
 
     except Exception as e:
-        print(f"Error in ML response generation: {e}")
+        print(f"Error in enhanced response generation: {e}")
         return fallback_banking_response(message, user)
+
+def get_loan_details(loan_type):
+    """Get detailed loan information"""
+    loan_details = {
+        'personal loan': "💰 Personal Loan Details:\n• Amount: ₹50,000 - ₹10,00,000\n• Interest Rate: 10.5% - 12.5%\n• Tenure: 1-5 years\n• Processing Time: 24-48 hours\n• Required: Income proof, ID proof",
+        'home loan': "🏠 Home Loan Details:\n• Amount: ₹5,00,000 - ₹5,00,00,000\n• Interest Rate: 8.5% - 9.5%\n• Tenure: 15-30 years\n• Processing Time: 7-15 days\n• Required: Property documents, Income proof",
+        'car loan': "🚗 Car Loan Details:\n• Amount: ₹1,00,000 - ₹50,00,000\n• Interest Rate: 9.5% - 11.5%\n• Tenure: 1-7 years\n• Processing Time: 2-5 days\n• Required: Vehicle invoice, Income proof",
+        'business loan': "💼 Business Loan Details:\n• Amount: ₹2,00,000 - ₹1,00,00,000\n• Interest Rate: 11.0% - 15.0%\n• Tenure: 1-5 years\n• Processing Time: 7-10 days\n• Required: Business documents, Financial statements"
+    }
+    
+    return loan_details.get(loan_type.lower(), "Loan information available upon request.")
+
+def generate_fallback_response(message, intent, confidence, entities, method):
+    """Generate fallback response"""
+    return {
+        'text': message,
+        'intent': intent,
+        'confidence': confidence,
+        'entities': entities,
+        'method': method,
+        'conversation_complete': False
+    }
+
+def generate_general_response(user, intent, confidence, entities, method):
+    """Generate general banking response"""
+    return {
+        'text': f"Hello {user['name']}! I'm your enhanced AI banking assistant.\n\n🤖 Analysis: {confidence:.1%} confidence\n\n🏦 I'm here to help with:\n• Account balance and statements\n• Money transfers and payments\n• Loan applications and EMI calculations\n• Card services and blocking\n• Branch and ATM locations\n• General banking queries\n\nWhat would you like to do today?",
+        'intent': intent,
+        'confidence': confidence,
+        'entities': entities,
+        'method': method,
+        'conversation_complete': False
+    }
 
 def fallback_analysis(message):
     """Fallback analysis when ML is not available"""
     message_lower = message.lower()
     entities = []
-    
+
     if any(word in message_lower for word in ['balance', 'amount', 'money']):
         return 'check_balance', 0.8, entities, 'rule'
     elif any(word in message_lower for word in ['transfer', 'send', 'pay']):
@@ -455,7 +584,7 @@ def fallback_banking_response(message, user):
 @app.route('/api/chat/analyze', methods=['POST'])
 @token_required
 def analyze_query_api():
-    """Analyze query for NLU using trained model"""
+    """Analyze query for NLU using enhanced trained model"""
     try:
         data = request.get_json()
         query = data.get('query', '').strip()
@@ -463,7 +592,7 @@ def analyze_query_api():
         if not query:
             return jsonify({'message': 'Query is required'}), 400
 
-        # Use ML-based analysis if available
+        # Use enhanced ML-based analysis if available
         if analyze_query:
             result = analyze_query(query)
             return jsonify(result), 200
@@ -505,6 +634,7 @@ def refresh_analytics():
     total_queries = len(USER_MESSAGES)
     success_queries = len([msg for msg in BOT_MESSAGES if msg.get('confidence', 0) > 0.7])
     success_rate = (success_queries / total_queries) if total_queries > 0 else 0
+
     intents = list(set([msg.get('intent', 'unknown') for msg in BOT_MESSAGES]))
     entities = sum(len(msg.get('entities', [])) for msg in BOT_MESSAGES)
 
@@ -541,7 +671,7 @@ def download_logs():
     output.seek(0)
     response = make_response(output.getvalue())
     response.headers['Content-Type'] = 'text/csv'
-    response.headers['Content-Disposition'] = 'attachment; filename=ml_chat_logs.csv'
+    response.headers['Content-Disposition'] = 'attachment; filename=enhanced_chat_logs.csv'
     return response
 
 @app.route('/api/admin/faq', methods=['GET'])
@@ -573,6 +703,7 @@ def create_faq():
 
         FAQS_DB.append(new_faq)
         return jsonify(new_faq), 201
+
     except Exception as e:
         return jsonify({'message': f'Error creating FAQ: {str(e)}'}), 500
 
@@ -594,19 +725,27 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'version': '2.0 - ML Enhanced',
+        'version': '3.0 - Enhanced ML with Conversation Flows',
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'users': len(USERS_DB),
         'sessions': len(CHAT_SESSIONS),
         'faqs': len(FAQS_DB),
-        'ml_enabled': analyze_query is not None
+        'ml_enabled': analyze_query is not None,
+        'features': [
+            'Structured conversation flows',
+            'Context-aware responses',
+            'Graceful fallback handling',
+            'Natural chitchat responses',
+            'Slot filling for information gathering'
+        ]
     }), 200
 
 if __name__ == '__main__':
-    print("🏦 SecureBank ML-Powered AI Chatbot API Starting...")
-    print("🤖 Enhanced Banking Features with Machine Learning")
+    print("🏦 SecureBank Enhanced AI Chatbot API Starting...")
+    print("🤖 Advanced Banking Features with Machine Learning")
     print("🔐 JWT Authentication Enabled")
     print("📱 CORS Enabled for React Frontend")
-    print("🧠 ML Intent Recognition Active")
+    print("🧠 Enhanced ML Intent Recognition with Context & Slot Filling")
+    print("💬 Conversation Flow Management Active")
     print("🌐 Server running at: http://localhost:3000")
     app.run(debug=True, host='0.0.0.0', port=3000)

@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FiLogOut, FiHelpCircle, FiMoon, FiSun, FiSettings, FiUser } from "react-icons/fi";
+import { 
+  FiLogOut, FiHelpCircle, FiMoon, FiSun, FiSettings, 
+  FiUser, FiAlertTriangle, FiArrowLeft, FiHome 
+} from "react-icons/fi";
 import { IoSend } from "react-icons/io5";
 import useAuthStore from "../store/authStore.jsx";
 import FaqList from "./FaqList.jsx";
@@ -17,6 +20,8 @@ const ChatWindow = () => {
   const [loadingBot, setLoadingBot] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(5);
+  const [conversationFlow, setConversationFlow] = useState(null);
+  const [slotFilling, setSlotFilling] = useState(null);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -92,6 +97,7 @@ const ChatWindow = () => {
       text: messageText,
       timestamp: new Date().toISOString()
     };
+
     setMessages(prev => [...prev, userMsg]);
     setMessageText("");
 
@@ -105,13 +111,34 @@ const ChatWindow = () => {
         messageText,
         userId: null
       });
-      
+
+      // Handle slot filling
+      if (response.bot.needs_slot_filling) {
+        setSlotFilling({
+          intent: response.bot.intent,
+          pending_slots: response.bot.pending_slots,
+          filled_slots: response.bot.filled_slots
+        });
+      } else {
+        setSlotFilling(null);
+      }
+
+      // Set conversation flow context if needed
+      if (response.bot.intent && response.bot.confidence > 0.8) {
+        setConversationFlow({
+          intent: response.bot.intent,
+          confidence: response.bot.confidence,
+          entities: response.bot.entities
+        });
+      }
+
       // Simulate realistic bot response delay
       const delay = Math.floor(Math.random() * 2000) + 1000;
       setTimeout(() => {
         setMessages(prev => [...prev, response.bot]);
         setLoadingBot(false);
       }, delay);
+
     } catch (error) {
       console.error('Error sending message:', error);
       setLoadingBot(false);
@@ -131,13 +158,18 @@ const ChatWindow = () => {
     navigate("/login");
   };
 
-  // Quick action messages
+  const goToDashboard = () => {
+    navigate("/dashboard");
+  };
+
+  // Enhanced quick action messages
   const quickActions = [
     "Check my balance",
-    "Show transaction history", 
-    "Help with money transfer",
-    "Loan information",
-    "Block my card"
+    "Transfer money",
+    "Apply for loan",
+    "Block my card",
+    "Find branch",
+    "Account information"
   ];
 
   const sendQuickAction = (action) => {
@@ -145,160 +177,434 @@ const ChatWindow = () => {
     setTimeout(() => handleSendMessage(), 100);
   };
 
+  // Render slot filling prompts
+  const renderSlotFillingPrompt = () => {
+    if (!slotFilling || !slotFilling.pending_slots) return null;
+
+    const pendingSlots = Object.keys(slotFilling.pending_slots);
+    if (pendingSlots.length === 0) return null;
+
+    return (
+      <div className="slot-filling-prompt" style={{
+        background: theme === 'light' ? '#fef3c7' : '#44403c',
+        border: `1px solid ${theme === 'light' ? '#f59e0b' : '#a16207'}`,
+        borderRadius: '8px',
+        padding: '12px',
+        margin: '12px 0',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <FiAlertTriangle style={{ color: theme === 'light' ? '#f59e0b' : '#fbbf24', flexShrink: 0 }} />
+        <div>
+          <strong>Additional Information Needed</strong>
+          <p style={{ margin: '4px 0 0 0', fontSize: '14px' }}>
+            Please provide: {pendingSlots.join(', ')}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  // Render conversation context
+  const renderConversationContext = () => {
+    if (!conversationFlow) return null;
+
+    return (
+      <div className="conversation-context" style={{
+        background: theme === 'light' ? '#dbeafe' : '#1e3a8a',
+        border: `1px solid ${theme === 'light' ? '#3b82f6' : '#60a5fa'}`,
+        borderRadius: '8px',
+        padding: '8px 12px',
+        margin: '8px 0',
+        fontSize: '12px',
+        color: theme === 'light' ? '#1e40af' : '#93c5fd'
+      }}>
+        🤖 Context: {conversationFlow.intent} ({(conversationFlow.confidence * 100).toFixed(0)}% confidence)
+        {conversationFlow.entities.length > 0 && (
+          <span> • Detected: {conversationFlow.entities.map(e => e.label).join(', ')}</span>
+        )}
+      </div>
+    );
+  };
+
   if (connectionError) {
     return (
-      <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center" }}>
-        <div className="card" style={{ width: "100%", maxWidth: 480, margin: "0 auto" }}>
-          <div className="card__body" style={{ textAlign: "center" }}>
-            <div style={{ width: 64, height: 64, margin: "0 auto 24px", backgroundColor: "var(--color-error)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <FiSettings style={{ color: "white", fontSize: "24px" }} />
-            </div>
-            <h3>Connection Error</h3>
-            <p style={{ marginTop: "16px", color: "var(--color-text-secondary)" }}>
-              Unable to connect to banking services. Retrying in {retryCountdown} seconds...
-            </p>
-          </div>
+      <div className="error-container" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        padding: '20px',
+        textAlign: 'center',
+        background: theme === 'light' ? '#f8fafc' : '#1a202c',
+        color: theme === 'light' ? '#1a202c' : '#f7fafc'
+      }}>
+        <div className="error-icon" style={{ fontSize: '48px', marginBottom: '16px' }}>🔄</div>
+        <h2>Connection Issue</h2>
+        <p>Unable to connect to banking services. Retrying in {retryCountdown} seconds...</p>
+        <div className="retry-progress" style={{
+          width: '200px',
+          height: '4px',
+          background: theme === 'light' ? '#e2e8f0' : '#4a5568',
+          borderRadius: '2px',
+          overflow: 'hidden',
+          marginTop: '16px'
+        }}>
+          <div style={{
+            width: `${((5 - retryCountdown) / 5) * 100}%`,
+            height: '100%',
+            background: '#667eea',
+            transition: 'width 1s ease'
+          }} />
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--color-background)" }}>
-      {/* Header */}
-      <header className="px-16 py-16" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: 48, height: 48, background: "linear-gradient(135deg, var(--color-teal-500), var(--color-teal-600))", borderRadius: "50%" }} />
-          <div>
-            <h3 style={{ margin: 0 }}>SecureBank Assistant</h3>
-            <span style={{ fontSize: "12px", color: "var(--color-success)" }}>● Online</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <button className="btn btn--outline" onClick={toggleTheme}>
-            {theme === 'light' ? <FiMoon /> : <FiSun />}
-          </button>
-          <div className="btn btn--outline" style={{ cursor: "default" }}>
-            <FiUser style={{ marginRight: "6px" }} /> 
-            {name || 'User'}
-          </div>
-          <button className="btn btn--outline" onClick={() => setShowFaqs(!showFaqs)}>
-            <FiHelpCircle />
-          </button>
-          <button className="btn btn--outline" onClick={logout}>
-            <FiLogOut />
-          </button>
-        </div>
-      </header>
-
-      {/* Messages Area */}
-      <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            style={{
-              display: "flex",
-              justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-              marginBottom: "16px"
-            }}
-          >
-            <div
-              style={{
-                maxWidth: "720px",
-                padding: "12px 16px",
-                borderRadius: "12px",
-                backgroundColor: msg.sender === 'user' ? 'var(--color-primary)' : 'var(--color-surface)',
-                color: msg.sender === 'user' ? 'var(--color-btn-primary-text)' : 'var(--color-text)',
-                border: msg.sender === 'user' ? 'none' : '1px solid var(--color-border)',
-                whiteSpace: "pre-wrap"
-              }}
-            >
-              <div>{msg.text}</div>
-              {msg.intent && msg.sender === 'bot' && (
-                <div style={{ marginTop: "8px", fontSize: "12px", opacity: 0.7 }}>
-                  Intent: {msg.intent}
-                </div>
-              )}
-              <div style={{ fontSize: "11px", opacity: 0.7, marginTop: "4px" }}>
-                {new Date(msg.timestamp).toLocaleTimeString()}
+    <div className="chat-container" style={{
+      display: 'flex',
+      height: '100vh',
+      background: theme === 'light' ? '#f8fafc' : '#1a202c'
+    }}>
+      {/* Sidebar */}
+      <div className="sidebar" style={{
+        width: '280px',
+        background: theme === 'light' ? 'white' : '#2d3748',
+        borderRight: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`,
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {/* User info */}
+        <div className="user-info" style={{
+          padding: '20px',
+          borderBottom: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: 'bold'
+            }}>
+              {name?.charAt(0)?.toUpperCase() || 'U'}
+            </div>
+            <div>
+              <div style={{ fontWeight: '600', color: theme === 'light' ? '#1a202c' : '#f7fafc' }}>
+                {name || 'User'}
+              </div>
+              <div style={{ fontSize: '12px', color: theme === 'light' ? '#64748b' : '#a0aec0' }}>
+                SecureBank Customer
               </div>
             </div>
           </div>
-        ))}
+        </div>
 
-        {loadingBot && (
-          <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: "16px" }}>
-            <div className="card" style={{ padding: "12px 16px" }}>
-              <span style={{ color: "var(--color-text-secondary)" }}>Assistant is typing...</span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+        {/* Navigation */}
+        <div className="navigation" style={{ padding: '20px' }}>
+          <button
+            onClick={goToDashboard}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              marginBottom: '16px'
+            }}
+          >
+            <FiHome size={16} />
+            Back to Dashboard
+          </button>
+        </div>
 
-      {/* Quick Actions */}
-      {messages.length <= 1 && (
-        <div className="px-16 py-16" style={{ borderTop: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)" }}>
-          <p style={{ color: "var(--color-text-secondary)", marginBottom: "12px" }}>
-            Quick actions to get started:
-          </p>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {quickActions.map((action) => (
+        {/* Quick actions */}
+        <div className="quick-actions" style={{ padding: '0 20px' }}>
+          <h3 style={{ 
+            marginBottom: '12px', 
+            fontSize: '14px', 
+            fontWeight: '600',
+            color: theme === 'light' ? '#374151' : '#e2e8f0'
+          }}>
+            Quick Actions
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {quickActions.map((action, index) => (
               <button
-                key={action}
-                className="btn btn--outline"
+                key={index}
                 onClick={() => sendQuickAction(action)}
+                style={{
+                  padding: '8px 12px',
+                  background: theme === 'light' ? '#f8fafc' : '#374151',
+                  border: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`,
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s ease',
+                  color: theme === 'light' ? '#374151' : '#e2e8f0'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = theme === 'light' ? '#f0f4ff' : '#4a5568';
+                  e.target.style.borderColor = '#667eea';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = theme === 'light' ? '#f8fafc' : '#374151';
+                  e.target.style.borderColor = theme === 'light' ? '#e2e8f0' : '#4a5568';
+                }}
               >
                 {action}
               </button>
             ))}
           </div>
         </div>
-      )}
 
-      {/* Message Input */}
-      <div className="px-16 py-16" style={{ borderTop: "1px solid var(--color-border)", backgroundColor: "var(--color-surface)" }}>
-        <div style={{ display: "flex", gap: "12px", alignItems: "flex-end" }}>
-          <textarea
-            rows={1}
-            className="form-control"
-            placeholder="Type your banking question..."
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={loadingBot}
-            style={{ flex: 1, resize: "none", minHeight: "44px" }}
-          />
-          <button
-            className="btn btn--primary"
-            onClick={handleSendMessage}
-            disabled={!messageText.trim() || loadingBot}
-            style={{ height: "44px", minWidth: "44px" }}
-          >
-            <IoSend />
-          </button>
+        {/* Controls */}
+        <div className="controls" style={{
+          marginTop: 'auto',
+          padding: '20px',
+          borderTop: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`
+        }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <button
+              onClick={toggleTheme}
+              style={{
+                padding: '8px',
+                background: 'none',
+                border: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: theme === 'light' ? '#64748b' : '#a0aec0'
+              }}
+            >
+              {theme === 'light' ? <FiMoon /> : <FiSun />}
+            </button>
+            <button
+              onClick={() => setShowFaqs(!showFaqs)}
+              style={{
+                padding: '8px',
+                background: 'none',
+                border: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: theme === 'light' ? '#64748b' : '#a0aec0'
+              }}
+            >
+              <FiHelpCircle />
+            </button>
+            <button
+              onClick={logout}
+              style={{
+                padding: '8px',
+                background: 'none',
+                border: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444'
+              }}
+            >
+              <FiLogOut />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* FAQ Sidebar */}
-      {showFaqs && (
-        <div style={{
-          position: "fixed",
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: "360px",
-          borderLeft: "1px solid var(--color-border)",
-          backgroundColor: "var(--color-surface)",
-          zIndex: 1000
+      {/* Main chat area */}
+      <div className="chat-main" style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {/* Header */}
+        <div className="chat-header" style={{
+          padding: '16px 24px',
+          borderBottom: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`,
+          background: theme === 'light' ? 'white' : '#2d3748'
         }}>
-          <button
-            className="btn btn--outline"
-            onClick={() => setShowFaqs(false)}
-            style={{ position: "absolute", top: "16px", right: "16px", zIndex: 1001 }}
-          >
-            ×
-          </button>
+          <h1 style={{ 
+            margin: 0, 
+            fontSize: '20px', 
+            fontWeight: '600',
+            color: theme === 'light' ? '#1a202c' : '#f7fafc'
+          }}>
+            🏦 SecureBank AI Assistant
+          </h1>
+          <p style={{ 
+            margin: '4px 0 0 0', 
+            fontSize: '14px', 
+            color: theme === 'light' ? '#64748b' : '#a0aec0' 
+          }}>
+            Enhanced with ML-powered conversation flows
+          </p>
+        </div>
+
+        {/* Messages area */}
+        <div className="messages-area" style={{
+          flex: 1,
+          padding: '20px',
+          overflowY: 'auto',
+          background: theme === 'light' ? '#f8fafc' : '#1a202c'
+        }}>
+          {/* Conversation context */}
+          {renderConversationContext()}
+          
+          {/* Slot filling prompt */}
+          {renderSlotFillingPrompt()}
+
+          {/* Messages */}
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={`message ${message.sender}`}
+              style={{
+                display: 'flex',
+                marginBottom: '16px',
+                justifyContent: message.sender === 'user' ? 'flex-end' : 'flex-start'
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: '70%',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  background: message.sender === 'user' 
+                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                    : theme === 'light' ? 'white' : '#2d3748',
+                  color: message.sender === 'user' 
+                    ? 'white' 
+                    : theme === 'light' ? '#1a202c' : '#f7fafc',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  border: message.sender === 'bot' ? `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}` : 'none'
+                }}
+              >
+                {message.text}
+                {message.sender === 'bot' && message.confidence && (
+                  <div style={{
+                    fontSize: '11px',
+                    opacity: 0.7,
+                    marginTop: '4px'
+                  }}>
+                    {message.method} • {(message.confidence * 100).toFixed(0)}% confidence
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Loading indicator */}
+          {loadingBot && (
+            <div className="message bot" style={{
+              display: 'flex',
+              marginBottom: '16px',
+              justifyContent: 'flex-start'
+            }}>
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: theme === 'light' ? 'white' : '#2d3748',
+                color: theme === 'light' ? '#64748b' : '#a0aec0',
+                border: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`
+              }}>
+                <div className="typing-dots">
+                  <span>●</span><span>●</span><span>●</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input area */}
+        <div className="input-area" style={{
+          padding: '20px',
+          borderTop: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`,
+          background: theme === 'light' ? 'white' : '#2d3748'
+        }}>
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'flex-end'
+          }}>
+            <textarea
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your banking query here..."
+              style={{
+                flex: 1,
+                minHeight: '44px',
+                maxHeight: '120px',
+                padding: '12px 16px',
+                border: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`,
+                borderRadius: '12px',
+                background: theme === 'light' ? '#f8fafc' : '#374151',
+                color: theme === 'light' ? '#1a202c' : '#f7fafc',
+                resize: 'vertical',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                outline: 'none'
+              }}
+              disabled={loadingBot}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!messageText.trim() || loadingBot}
+              style={{
+                padding: '12px',
+                background: messageText.trim() && !loadingBot 
+                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                  : theme === 'light' ? '#e2e8f0' : '#4a5568',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: messageText.trim() && !loadingBot ? 'pointer' : 'not-allowed',
+                opacity: messageText.trim() && !loadingBot ? 1 : 0.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px'
+              }}
+            >
+              <IoSend />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* FAQ Panel */}
+      {showFaqs && (
+        <div className="faq-panel" style={{
+          width: '320px',
+          background: theme === 'light' ? 'white' : '#2d3748',
+          borderLeft: `1px solid ${theme === 'light' ? '#e2e8f0' : '#4a5568'}`
+        }}>
           <FaqList visible={showFaqs} />
         </div>
       )}
