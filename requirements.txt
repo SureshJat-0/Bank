@@ -6,3 +6,4 @@ pandas==2.1.4
 numpy==1.22.4
 python-dateutil==2.8.2
 requests==2.31.0
+gunicorn==23.0.0
