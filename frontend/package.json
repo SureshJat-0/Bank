@@ -5,8 +5,8 @@
   "type": "module",
   "description": "ML-Powered Banking Chatbot Frontend with React + Vite",
   "scripts": {
-    "dev": "vite --host",
-    "build": "vite build",
+    "dev": "vite",
+    "build": "node node_modules/.bin/vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "concurrently \"npm run dev\" \"cd ../backend && python app.py\"",
