@@ -28,10 +28,9 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'securebank_jwt_secret_key_2024'
 CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
 
-@app.route("/")
+@app.route("/api")
 def root():
     return jsonify({"status": "Enhanced ML-Powered Banking API", "version": "3.0", "ml_enabled": analyze_query is not None}), 200
-
 # Users DB
 USERS_DB = {
     "admin@securebank.com": {
