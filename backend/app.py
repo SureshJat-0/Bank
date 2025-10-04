@@ -9,6 +9,8 @@ import uuid
 import csv
 import io
 import re
+from flask import send_from_directory
+import os
 
 # Import ML NLU service
 try:
@@ -739,6 +741,17 @@ def health_check():
             'Slot filling for information gathering'
         ]
     }), 200
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    if path.startswith('api'):
+        return root()
+    static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/dist'))
+    if path != "" and os.path.exists(os.path.join(static_folder, path)):
+        return send_from_directory(static_folder, path)
+    else:
+        return send_from_directory(static_folder, 'index.html')
 
 if __name__ == '__main__':
     print("🏦 SecureBank Enhanced AI Chatbot API Starting...")
